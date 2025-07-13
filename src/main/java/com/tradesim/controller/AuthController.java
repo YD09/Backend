@@ -31,7 +31,7 @@ public class AuthController {
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@Valid @RequestBody SendOtpRequest request) {
         try {
-            authService.sendOtp(request.getMobileNumber());
+            authService.sendOtp(request.getMobileNumber(), request.getEmail());
             return ResponseEntity.ok(Map.of("message", "OTP sent successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -71,6 +71,7 @@ public class AuthController {
     @Data
     public static class SendOtpRequest {
         private String mobileNumber;
+        private String email;
     }
 
     @Data

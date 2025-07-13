@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Token Exchange</title>
+</head>
+<body>
+    <h2>Testing FYERS Token Exchange</h2>
+    <button onclick="exchangeToken()">Exchange Auth Code for Access Token</button>
+    <div id="result"></div>
+
+    <script>
+        async function exchangeToken() {
+            const authCode = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfaWQiOiI2T0FURk5NNjIxIiwidXVpZCI6Ijc4ZDM0MTJkMmM5NjQ4YTU5YTJmZjhjYWI1ZWEzNjI1IiwiaXBBZGRyIjoiIiwibm9uY2UiOiIiLCJzY29wZSI6IiIsImRpc3BsYXlfbmFtZSI6IlhZMDQ0NTgiLCJvbXMiOiJLMSIsImhzbV9rZXkiOiJjZGRhNmQ3NjFmZDI3MmY2ZTI5M2I0NTNkZTI4ZWQyMjY1MjI2YzQ0MjFjYzE3OTgyMDFlZmU3NiIsImlzRGRwaUVuYWJsZWQiOiJOIiwiaXNNdGZFbmFibGVkIjoiTiIsImF1ZCI6IltcImQ6MVwiLFwiZDoyXCIsXCJ4OjBcIixcIng6MVwiLFwieDoyXCJdIiwiZXhwIjoxNzUyMzM5NjAwLCJpYXQiOjE3NTIzMDk2MDAsImlzcyI6ImFwaS5sb2dpbi5meWVycy5pbiIsIm5iZiI6MTc1MjMwOTYwMCwic3ViIjoiYXV0aF9jb2RlIn0.rYKzqB4a-JyevFsYrZS9CYtuale-1a7TjcwJC1hPNGk';
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/fyers/token?code=${encodeURIComponent(authCode)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.text();
+                document.getElementById('result').innerHTML = `
+                    <h3>Response:</h3>
+                    <p>Status: ${response.status}</p>
+                    <p>Response: ${result}</p>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>Error:</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Backend Test</title>
+</head>
+<body>
+    <h2>Simple Backend Test</h2>
+    <button onclick="testBackend()">Test Backend</button>
+    <button onclick="testTokenExchange()">Test Token Exchange</button>
+    <div id="result"></div>
+
+    <script>
+        function log(message) {
+            document.getElementById('result').innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+
+        async function testBackend() {
+            try {
+                log('Testing backend connection...');
+                const response = await fetch('http://localhost:8080/api/fyers/login', {
+                    method: 'GET'
+                });
+                log('Backend Status: ' + response.status);
+                if (response.ok) {
+                    log('✅ Backend is running!');
+                } else {
+                    log('❌ Backend error: ' + response.status);
+                }
+            } catch (error) {
+                log('❌ Connection failed: ' + error.message);
+            }
+        }
+
+        async function testTokenExchange() {
+            const authCode = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfaWQiOiI2T0FURk5NNjIxIiwidXVpZCI6Ijc4ZDM0MTJkMmM5NjQ4YTU5YTJmZjhjYWI1ZWEzNjI1IiwiaXBBZGRyIjoiIiwibm9uY2UiOiIiLCJzY29wZSI6IiIsImRpc3BsYXlfbmFtZSI6IlhZMDQ0NTgiLCJvbXMiOiJLMSIsImhzbV9rZXkiOiJjZGRhNmQ3NjFmZDI3MmY2ZTI5M2I0NTNkZTI4ZWQyMjY1MjI2YzQ0MjFjYzE3OTgyMDFlZmU3NiIsImlzRGRwaUVuYWJsZWQiOiJOIiwiaXNNdGZFbmFibGVkIjoiTiIsImF1ZCI6IltcImQ6MVwiLFwiZDoyXCIsXCJ4OjBcIixcIng6MVwiLFwieDoyXCJdIiwiZXhwIjoxNzUyMzM5NjAwLCJpYXQiOjE3NTIzMDk2MDAsImlzcyI6ImFwaS5sb2dpbi5meWVycy5pbiIsIm5iZiI6MTc1MjMwOTYwMCwic3ViIjoiYXV0aF9jb2RlIn0.rYKzqB4a-JyevFsYrZS9CYtuale-1a7TjcwJC1hPNGk';
+            
+            try {
+                log('Testing token exchange...');
+                const response = await fetch(`http://localhost:8080/api/fyers/token?code=${encodeURIComponent(authCode)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log('Token Exchange Status: ' + response.status);
+                const result = await response.text();
+                log('Response: ' + result);
+                
+                if (response.ok) {
+                    log('✅ Token exchange successful!');
+                } else {
+                    log('❌ Token exchange failed');
+                }
+            } catch (error) {
+                log('❌ Token exchange error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

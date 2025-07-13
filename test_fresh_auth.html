@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fresh Auth Code Test</title>
+</head>
+<body>
+    <h2>Fresh Auth Code Test</h2>
+    <button onclick="getFreshAuthCode()">1. Get Fresh Auth Code</button>
+    <button onclick="testTokenExchange()">2. Test Token Exchange</button>
+    <div id="result"></div>
+
+    <script>
+        function log(message) {
+            document.getElementById('result').innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+
+        function getFreshAuthCode() {
+            log('Opening FYERS login page...');
+            // Open FYERS login in a new window
+            const loginUrl = 'https://api.fyers.in/api/v3/generate-authcode?client_id=6OATFNM621-100&redirect_uri=http://127.0.0.1:5000/callback&response_type=code&state=xyz';
+            window.open(loginUrl, '_blank');
+            log('✅ FYERS login page opened. Please login and copy the auth code from the redirect URL.');
+            log('The redirect URL will look like: http://127.0.0.1:5000/callback?code=YOUR_NEW_AUTH_CODE&state=xyz');
+        }
+
+        async function testTokenExchange() {
+            const authCode = prompt('Enter the fresh auth code from the redirect URL:');
+            if (!authCode) {
+                log('❌ No auth code provided');
+                return;
+            }
+            
+            try {
+                log('Testing token exchange with fresh auth code...');
+                const response = await fetch(`http://localhost:8080/api/fyers/token?code=${encodeURIComponent(authCode)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log('Token Exchange Status: ' + response.status);
+                const result = await response.text();
+                log('Response: ' + result);
+                
+                if (response.ok) {
+                    log('✅ Token exchange successful!');
+                    try {
+                        const jsonResult = JSON.parse(result);
+                        if (jsonResult.access_token) {
+                            log('✅ Access token obtained: ' + jsonResult.access_token.substring(0, 20) + '...');
+                        }
+                    } catch (e) {
+                        log('Response is not JSON: ' + result);
+                    }
+                } else {
+                    log('❌ Token exchange failed');
+                }
+            } catch (error) {
+                log('❌ Token exchange error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 
