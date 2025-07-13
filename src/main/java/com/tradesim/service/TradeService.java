@@ -1,102 +1,146 @@
-// package com.tradesim.service;
 
-// import java.time.LocalDateTime;
-// import java.util.List;
-// import java.util.UUID;
-
-// import org.springframework.beans.factory.annotation.Autowired;
-// import org.springframework.stereotype.Service;
-
-// import com.tradesim.model.Trade;
-// import com.tradesim.model.UserWallet;
-// import com.tradesim.repository.TradeRepository;
-// import com.tradesim.repository.WalletRepository;
-
-// @Service
-// public class TradeService {
-//   @Autowired
-//   private TradeRepository tradeRepo;
-
-//   @Autowired
-//   private WalletRepository walletRepo;
-
-//   public Trade executeTrade(Trade trade) {
-//     UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-//     UserWallet wallet = walletRepo.findById(userId).orElseGet(() -> {
-//       UserWallet w = new UserWallet();
-//       w.setUserId(userId);
-//       return walletRepo.save(w);
-//     });
-
-//     double cost = trade.getPrice() * trade.getQuantity();
-//     if (trade.getType().equalsIgnoreCase("BUY")) {
-//       wallet.setBalance(wallet.getBalance() - cost);
-//     } else {
-//       wallet.setBalance(wallet.getBalance() + cost);
-//     }
-
-//     trade.setTimestamp(LocalDateTime.now());
-//     trade.setPnl(0.0); // future logic can update this
-
-//     walletRepo.save(wallet);
-//     return tradeRepo.save(trade);
-//   }
-
-//   public double getWalletBalance(UUID userId) {
-//     return walletRepo.findById(userId).map(UserWallet::getBalance).orElse(0.0);
-//   }
-
-//   public List<Trade> getAllTrades() {
-//     return tradeRepo.findAll();
-//   }
-// }
 package com.tradesim.service;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-
+import com.tradesim.model.Trade;
+import com.tradesim.model.User;
+import com.tradesim.model.Wallet;
+import com.tradesim.repository.TradeRepository;
+import com.tradesim.repository.WalletRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.tradesim.model.Trade;
-import com.tradesim.model.UserWallet;
-import com.tradesim.repository.TradeRepository;
-import com.tradesim.repository.WalletRepository;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class TradeService {
 
     @Autowired
-    private TradeRepository tradeRepo;
+    private TradeRepository tradeRepository;
 
     @Autowired
-    private WalletRepository walletRepo;
+    private WalletRepository walletRepository;
 
-    public String placeTrade(UUID userId, String symbol, double price, int quantity, String type) {
-        UserWallet wallet = walletRepo.findById(userId).orElse(new UserWallet());
-        wallet.setUserId(userId);
-        double amount = price * quantity;
+    @Autowired
+    private WalletService walletService;
 
-        if (type.equalsIgnoreCase("BUY") && wallet.getBalance() < amount) {
-            return " Insufficient balance";
+    public Trade placeTrade(User user, String symbol, String exchange, String instrumentType, 
+                          int quantity, Trade.TradeType type, double price) {
+        
+        // Get or create wallet
+        Wallet wallet = walletRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    Wallet newWallet = new Wallet();
+                    newWallet.setUserId(user.getId());
+                    return walletRepository.save(newWallet);
+                });
+
+        // Check if user has sufficient balance
+        double tradeValue = price * quantity;
+        if (type == Trade.TradeType.BUY && wallet.getBalance() < tradeValue) {
+            throw new RuntimeException("Insufficient balance");
         }
 
-        double pnl = 0;
-        if (type.equalsIgnoreCase("SELL")) {
-            // In real logic: calculate PnL using average buy price
-            pnl = amount * 0.05; // fake 5% profit for now
-        }
+        // Create trade
+        Trade trade = new Trade();
+        trade.setUser(user);
+        trade.setSymbol(symbol);
+        trade.setExchange(exchange);
+        trade.setInstrumentType(instrumentType);
+        trade.setQuantity(quantity);
+        trade.setType(type);
+        trade.setEntryPrice(price);
+        trade.setStatus(Trade.TradeStatus.OPEN);
 
-        if (type.equalsIgnoreCase("BUY")) {
-            wallet.setBalance(wallet.getBalance() - amount);
+        // Update wallet
+        if (type == Trade.TradeType.BUY) {
+            wallet.setBalance(wallet.getBalance() - tradeValue);
         } else {
-            wallet.setBalance(wallet.getBalance() + amount + pnl);
+            wallet.setBalance(wallet.getBalance() + tradeValue);
+        }
+        walletRepository.save(wallet);
+
+        return tradeRepository.save(trade);
+    }
+
+    public Trade closeTrade(User user, Long tradeId, double exitPrice) {
+        Trade trade = tradeRepository.findById(tradeId)
+                .orElseThrow(() -> new RuntimeException("Trade not found"));
+
+        if (!trade.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized");
         }
 
-        Trade trade = new Trade(symbol, price, quantity, type.toUpperCase(), LocalDateTime.now(), pnl);
-        tradeRepo.save(trade);
-        walletRepo.save(wallet);
+        if (trade.getStatus() != Trade.TradeStatus.OPEN) {
+            throw new RuntimeException("Trade is already closed");
+        }
 
-        return " Trade Executed: " + type + " " + symbol + " x" + quantity;
+        // Calculate P&L
+        double pnl = calculatePnl(trade, exitPrice);
+        double pnlPercentage = (pnl / (trade.getEntryPrice() * trade.getQuantity())) * 100;
+
+        // Update trade
+        trade.setExitPrice(exitPrice);
+        trade.setExitTime(LocalDateTime.now());
+        trade.setPnl(pnl);
+        trade.setPnlPercentage(pnlPercentage);
+        trade.setStatus(Trade.TradeStatus.CLOSED);
+
+        // Update wallet
+        Wallet wallet = walletRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+
+        if (trade.getType() == Trade.TradeType.BUY) {
+            wallet.setBalance(wallet.getBalance() + (exitPrice * trade.getQuantity()));
+        } else {
+            wallet.setBalance(wallet.getBalance() - (exitPrice * trade.getQuantity()));
+        }
+        walletRepository.save(wallet);
+
+        return tradeRepository.save(trade);
+    }
+
+    public List<Trade> getOpenTrades(User user) {
+        return tradeRepository.findByUserAndStatus(user, Trade.TradeStatus.OPEN);
+    }
+
+    public List<Trade> getTradeHistory(User user, String symbol, String status) {
+        if (symbol != null && status != null) {
+            return tradeRepository.findByUserAndSymbol(user, symbol);
+        } else if (symbol != null) {
+            return tradeRepository.findByUserAndSymbol(user, symbol);
+        } else if (status != null) {
+            return tradeRepository.findByUserAndStatus(user, Trade.TradeStatus.valueOf(status));
+        } else {
+            return tradeRepository.findByUserOrderByEntryTimeDesc(user);
+        }
+    }
+
+    public Map<String, Object> getPnlSummary(User user) {
+        List<Trade> closedTrades = tradeRepository.findByUserAndStatus(user, Trade.TradeStatus.CLOSED);
+        List<Trade> openTrades = tradeRepository.findByUserAndStatus(user, Trade.TradeStatus.OPEN);
+
+        double totalPnl = closedTrades.stream().mapToDouble(Trade::getPnl).sum();
+        double unrealizedPnl = openTrades.stream().mapToDouble(trade -> 
+            calculatePnl(trade, trade.getEntryPrice())).sum();
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalPnl", totalPnl);
+        summary.put("unrealizedPnl", unrealizedPnl);
+        summary.put("totalTrades", closedTrades.size() + openTrades.size());
+        summary.put("closedTrades", closedTrades.size());
+        summary.put("openTrades", openTrades.size());
+
+        return summary;
+    }
+
+    private double calculatePnl(Trade trade, double exitPrice) {
+        if (trade.getType() == Trade.TradeType.BUY) {
+            return (exitPrice - trade.getEntryPrice()) * trade.getQuantity();
+        } else {
+            return (trade.getEntryPrice() - exitPrice) * trade.getQuantity();
+        }
     }
 }

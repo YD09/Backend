@@ -33,7 +33,7 @@ public class FyersController {
         if (code == null || code.isEmpty()) {
             return ResponseEntity.badRequest().body(" Missing auth code in callback");
         }
-        return ResponseEntity.ok("✅ Auth code received: " + code);
+        return ResponseEntity.ok(" Auth code received: " + code);
     }
 
     @PostMapping("/token")
